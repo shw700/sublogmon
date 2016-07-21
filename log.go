@@ -43,8 +43,6 @@ var ( AuditLogs  = []LogAuditFile {
 			OutputStr: "AppArmor violation of profile {profile} detected from {application} attempting {operation} on {target}",
 			OutputAttr: ANSI_COLOR_RED_BOLD } } },
 /*1*/	{ Desc: "oz daemon log",	PathName: "/var/log/oz-daemon.log", Filters: []LogFilter{
-//Jul 18 17:44:52 subgraph oz-daemon[1273]: 2016/07/18 17:44:52 [ricochet] (stderr) E [FATAL] Error (exec): no such file or directory /usr/bin-oz/ricochet
-
 		{ Regexp: ".+oz-daemon\\[.+\\[(?P<application>.+)\\].+\\[FATAL\\] (?P<errmsg>.+)",
 			Fields: []string{ "application", "errmsg" },
 			OutputStr: "Fatal oz-daemon condition encountered in {application}: {errmsg}",
@@ -59,7 +57,6 @@ var ( AuditLogs  = []LogAuditFile {
 			OutputStr: "TOR WARNING: {warning}",
 			OutputAttr: ANSI_COLOR_RED } } },
 /*3*/	{ Desc: "kernel and dmesg buffer",	PathName: "/var/log/kern.log", Filters: []LogFilter{
-//Jul 14 21:35:05 subgraph kernel: [  459.100250] PAX: terminating task: /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java(java):19201, uid/euid: 0/0, PC: 000003bd05000060, SP: 000003bd1c42d438
 		{ Regexp: ".+kernel:.+PAX: terminating task: (?P<application>.+):[0-9]+,.+",
 			Fields: []string{ "application" },
 			OutputStr: "PAX terminated process: {application}",
@@ -193,7 +190,7 @@ func main() {
 
 		select {
 			case ev := <-watcher.Event:
-				fmt.Println("watcher event")
+//				fmt.Println("watcher event")
 //				log.Println("event: ", ev)
 //				fmt.Printf("mask was %x\n", ev.Mask)
 
