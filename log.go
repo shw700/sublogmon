@@ -5,6 +5,7 @@ import "log"
 import "os"
 import "regexp"
 import "strings"
+import "strconv"
 import "golang.org/x/exp/inotify"
 
 
@@ -17,6 +18,13 @@ const ANSI_COLOR_RESET =	"\033[0m"
 const AUDIT_LOG_FILE = "/var/log/audit/audit.log"
 
 const BUFSIZE = 4096
+
+type LogFunc func(string) (string)
+
+type LogFunction struct {
+	FuncName string
+	Func LogFunc
+}
 
 type LogFilter struct {
 	Regexp string 
@@ -34,11 +42,15 @@ type LogAuditFile struct {
 	Backlog string
 }
 
+
+var ( LogFunctions = []LogFunction {
+	{ FuncName: "getscname", Func: getSyscallByNumber } })
+
 var ( AuditLogs  = []LogAuditFile {
 /*0*/	{ Desc: "auditd events",	PathName: "/var/log/audit/audit.log", Filters: []LogFilter{
 		{ Regexp: "^type=SECCOMP msg=.+exe=\"(?P<exename>.+)\".+arch=(?P<arch>.+) syscall=(?P<syscall>[0-9]+)",
 			Fields: []string{ "exename", "arch", "syscall" },
-			OutputStr: "SECCOMP violation detected when application {exename} attempted to call syscall no. {syscall}",
+			OutputStr: "SECCOMP violation detected when application {exename} attempted to call syscall ${syscall}:getscname:",
 			OutputAttr: ANSI_COLOR_RED_BOLD },
 		{ Regexp: "^type=AVC.+apparmor=\"DENIED\" operation=\"(?P<operation>.+?)\".+profile=\"(?P<profile>.+?)\".+name=\"(?P<target>.+?)\".+comm=\"(?P<application>.+?)\".+",
 			Fields: []string{ "operation", "application", "target" },
@@ -72,6 +84,26 @@ var ( AuditLogs  = []LogAuditFile {
 			OutputStr: "grsec msg: {grsecmsg}" } } } }
 )
 
+
+func getSyscallByNumber(data string) (string) {
+	scno, err := strconv.Atoi(data)
+
+	if err != nil {
+		fmt.Printf("Error: syscall \"%s\" does not appear to be a valid number.\n", data)
+		return ""
+	}
+
+	for key, val := range Syscalls {
+
+		if val == scno {
+			return key
+		}
+
+	}
+
+	fmt.Printf("Error: syscall \"%s\" does not appear to be a valid number.\n", data)
+	return ""
+}
 
 func testRegexp(logIndex int, filterIndex int, expression string) {
 
@@ -119,10 +151,56 @@ func formatOutput(src string, strMap map[string]string) (string) {
 	retstr := src
 
 	for key, val := range strMap {
-//		fmt.Printf("range key = %s, val = %s, map[val] = %s\n", key, val, strMap[key])
 		replStr := "{" + key + "}"
-//		fmt.Println("SEARCHING FOR: ", replStr)
-		retstr = strings.Replace(retstr, replStr, val, -1)
+
+		sInd := strings.Index(retstr, replStr)
+
+		for sInd > -1 {
+			fInd := sInd
+			lInd := sInd + len(replStr)
+			replaced := val
+
+			if fInd > 0 && retstr[fInd-1] == '$' {
+				fInd--
+
+				afterBrace := retstr[lInd:]
+
+				if len(afterBrace) < 2 || afterBrace[0] != ':' {
+					fmt.Printf("Error in formatting rule: \"%s\"\n", src)
+					return ""
+				}
+
+				endFuncInd := strings.Index(retstr[lInd+1:], ":")
+
+				if endFuncInd <= 0 {
+					fmt.Printf("Error in formatting rule: \"%s\"\n", src)
+					return ""
+				}
+
+				custFuncName := retstr[lInd+1:lInd+1+endFuncInd]
+
+				lInd += endFuncInd+2
+
+				for i := 0; i < len(LogFunctions); i++ {
+
+					if LogFunctions[i].FuncName == custFuncName {
+						replaced = LogFunctions[i].Func(replaced)
+
+						if len(replaced) == 0 {
+							replaced = val
+							break
+						}
+
+					}
+
+				}
+
+			}
+
+			retstr = retstr[0:fInd] + replaced + retstr[lInd:]
+			sInd = strings.Index(retstr, replStr)
+		}
+
 	}
 
 	return retstr
@@ -132,7 +210,6 @@ func formatOutput(src string, strMap map[string]string) (string) {
 
 
 func main() {
-
 
 /*	
 	fmt.Println("Attempting test...")
