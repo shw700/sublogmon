@@ -218,6 +218,11 @@ func main() {
 	os.Exit(0)
 */
 
+	dbo, err := newDbusObject()
+	if (err != nil) {
+		log.Fatal("Error connecting to SystemBus: %v", err)
+	}
+
 	if os.Getuid() > 0 {
 		fmt.Println("Warning: this program probably won't run unless you execute it as root.")
 	}
@@ -386,12 +391,13 @@ func main() {
 					        if len(outstr) == 0 {
 							fmt.Println("*** Filter condition was matched but no output string was generated")
 						} else {
-
+							alertstr := outstr
 					                if len(AuditLogs[i].Filters[j].OutputAttr) > 0 {
 								outstr = AuditLogs[i].Filters[j].OutputAttr + outstr + ANSI_COLOR_RESET
 							}
 
 							fmt.Println("* ", outstr)
+							dbo.alert(alertstr)
 						}
 
 					}
