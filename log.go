@@ -81,7 +81,13 @@ var ( AuditLogs  = []LogAuditFile {
 			OutputAttr: ANSI_COLOR_YELLOW },
 		{ Regexp: ".+kernel:.+grsec: (?P<grsecmsg>.+)",
 			Fields: []string{ "grsecmsg" },
-			OutputStr: "grsec msg: {grsecmsg}" } } } }
+			OutputStr: "grsec msg: {grsecmsg}" } } },
+/*4*/   { Desc: "roflcoptor log",       PathName: "/var/log/daemon.log", Filters: []LogFilter{
+                { Regexp: ".+roflcoptor.+DENY: \\[(?P<application>.+)\\].+",
+                        Fields: []string{ "application" },
+                        OutputStr: "roflcoptor denied unauthorized Tor control port access by {application}",
+                        OutputAttr: ANSI_COLOR_RED } } } }
+
 )
 
 
