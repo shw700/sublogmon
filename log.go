@@ -226,7 +226,7 @@ func main() {
 		}
 
 		for j := 0; j < len(AuditLogs[i].Filters); j++ {
-			fil := AuditLogs[i].Filters[j]
+			fil := &(AuditLogs[i].Filters[j])
 			outStr := "*" + fil.OutputAttr + "*"
 			attr, ok := colorsMap[fil.OutputAttr]
 
