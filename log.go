@@ -6,12 +6,18 @@ import "os"
 import "regexp"
 import "strings"
 import "strconv"
+import "io/ioutil"
+import "encoding/json"
+import "flag"
+
 import "golang.org/x/exp/inotify"
 
-const ANSI_COLOR_RED = "\033[0;31m"
-const ANSI_COLOR_RED_BOLD = "\033[1;31m"
-const ANSI_COLOR_YELLOW = "\033[0;33m"
-const ANSI_COLOR_RESET = "\033[0m"
+var colorsMap = map[string]string{
+	"ANSI_COLOR_RED":      "\033[0;31m",
+	"ANSI_COLOR_RED_BOLD": "\033[1;31m",
+	"ANSI_COLOR_YELLOW":   "\033[0;33m",
+	"ANSI_COLOR_RESET":    "\033[0m",
+}
 
 const AUDIT_LOG_FILE = "/var/log/audit/audit.log"
 
@@ -33,66 +39,18 @@ type LogFilter struct {
 }
 
 type LogAuditFile struct {
-	Desc     string
-	PathName string
-	Filters  []LogFilter
-	f        *os.File
-	Backlog  string
+	Description string
+	PathName    string
+	Filters     []LogFilter
+	f           *os.File
+	Backlog     string
 }
+
+var AuditLogs []LogAuditFile
 
 var (
 	LogFunctions = []LogFunction{
 		{FuncName: "getscname", Func: getSyscallByNumber}}
-)
-
-var (
-	AuditLogs = []LogAuditFile{
-		/*0*/ {Desc: "auditd events", PathName: "/var/log/audit/audit.log", Filters: []LogFilter{
-			{Regexp: "^type=SECCOMP msg=.+exe=\"(?P<exename>.+)\".+arch=(?P<arch>.+) syscall=(?P<syscall>[0-9]+)",
-				Fields:     []string{"exename", "arch", "syscall"},
-				OutputStr:  "SECCOMP violation detected when application {exename} attempted to call syscall ${syscall}:getscname:",
-				OutputAttr: ANSI_COLOR_RED_BOLD},
-			{Regexp: "^type=AVC.+apparmor=\"DENIED\" operation=\"(?P<operation>.+?)\".+profile=\"(?P<profile>.+?)\".+name=\"(?P<target>.+?)\".+comm=\"(?P<application>.+?)\".+",
-				Fields:     []string{"operation", "application", "target"},
-				OutputStr:  "AppArmor violation of profile {profile} detected from {application} attempting {operation} on {target}",
-				OutputAttr: ANSI_COLOR_RED_BOLD}}},
-		/*1*/ {Desc: "oz daemon log", PathName: "/var/log/oz-daemon.log", Filters: []LogFilter{
-			{Regexp: ".+oz-daemon\\[.+\\[(?P<application>.+)\\].+\\[FATAL\\] (?P<errmsg>.+)",
-				Fields:     []string{"application", "errmsg"},
-				OutputStr:  "Fatal oz-daemon condition encountered in {application}: {errmsg}",
-				OutputAttr: ANSI_COLOR_RED_BOLD}}},
-		/*2*/ {Desc: "tor daemon log", PathName: "/var/log/tor/log", Filters: []LogFilter{
-			{Regexp: ".+behind the time published.+\\((?P<utctime>.+)\\).+Tor needs an accurate clock.+Please check your time.+",
-				Fields:     []string{"utctime"},
-				OutputStr:  "FATAL: TOR will not work unless you update your system clock to: {utctime}",
-				OutputAttr: ANSI_COLOR_RED_BOLD},
-			{Regexp: ".+\\[warn\\] (?P<warning>.+)",
-				Fields:     []string{"warning"},
-				OutputStr:  "TOR WARNING: {warning}",
-				OutputAttr: ANSI_COLOR_RED}}},
-		/*3*/ {Desc: "kernel and dmesg buffer", PathName: "/var/log/kern.log", Filters: []LogFilter{
-			{Regexp: ".+kernel:.+PAX: terminating task: (?P<application>.+):[0-9]+,.+",
-				Fields:     []string{"application"},
-				OutputStr:  "PAX terminated process: {application}",
-				OutputAttr: ANSI_COLOR_RED_BOLD},
-			{Regexp: ".+kernel:.+grsec: denied (?P<action>.+?) .+ by (?P<application>.+?)\\[.+",
-				Fields:     []string{"action", "application"},
-				OutputStr:  "grsec denied operation {action} to application {application}",
-				OutputAttr: ANSI_COLOR_YELLOW},
-			{Regexp: ".+kernel:.+grsec: (?P<grsecmsg>.+)",
-				Fields:    []string{"grsecmsg"},
-				OutputStr: "grsec msg: {grsecmsg}"}}},
-		/*4*/ {Desc: "daemon log", PathName: "/var/log/daemon.log", Filters: []LogFilter{
-			{Regexp: ".+roflcoptor.+DENY: \\[(?P<application>.+)\\].+",
-				Fields:     []string{"application"},
-				OutputStr:  "roflcoptor denied unauthorized Tor control port access by {application}",
-				OutputAttr: ANSI_COLOR_RED}}},
-
-		/* 5*/ {Desc: "syslog", PathName: "/var/log/syslog", Filters: []LogFilter{
-			{Regexp: ".+fw-daemon.+DENY\\|(?P<host>.+?):(?P<port>\\d+?) \\((?P<app>.+?) -\\> (?P<ip>[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+?):[0-9]+\\)", //\\)",
-				Fields:     []string{"host", "port"}, // , "app", "ip"},
-				OutputStr:  "Subgraph Firewall denied {app} connect attempt to {host} ({ip}) on port {port}",
-				OutputAttr: ANSI_COLOR_RED}}}}
 )
 
 func getSyscallByNumber(data string) string {
@@ -149,7 +107,7 @@ func testRegexp(logIndex int, filterIndex int, expression string) {
 	} else {
 
 		if len(AuditLogs[logIndex].Filters[filterIndex].OutputAttr) > 0 {
-			outstr = AuditLogs[logIndex].Filters[filterIndex].OutputAttr + outstr + ANSI_COLOR_RESET
+			outstr = AuditLogs[logIndex].Filters[filterIndex].OutputAttr + outstr + colorsMap["ANSI_COLOR_RESET"]
 		}
 
 		fmt.Println("OUTPUT: ", outstr)
@@ -216,7 +174,76 @@ func formatOutput(src string, strMap map[string]string) string {
 	return retstr
 }
 
+var progName string
+
+func usage() {
+	fmt.Fprintln(os.Stderr, "Usage: "+progName+" [-h/-help] [-d/-debug] [-c/-config json_config]     where")
+	fmt.Fprintln(os.Stderr, "  -c / -config:     specifies a custom json config file (\"sublogmon.json\" by default),")
+	fmt.Fprintln(os.Stderr, "  -d / -debug:      dumps additional debug information to stderr,")
+	fmt.Fprintln(os.Stderr, "  -h / -help:       display this help message,")
+}
+
 func main() {
+	progName = os.Args[0]
+
+	var conffile = flag.String("conf", "sublogmon.json", "Specify json config file")
+	flag.StringVar(conffile, "c", "sublogmon.json", "Specify json config file")
+	var debug = flag.Bool("debug", false, "Turn on debug mode")
+	flag.BoolVar(debug, "d", false, "Turn on debug mode")
+
+	flag.Usage = usage
+	flag.Parse()
+
+	var args = flag.Args()
+
+	if len(args) > 0 {
+		flag.Usage()
+		os.Exit(-1)
+	}
+
+	jfile, err := ioutil.ReadFile(*conffile)
+
+	if err != nil {
+		log.Fatal("Error opening json file: ", err)
+		os.Exit(-1)
+	}
+
+	err = json.Unmarshal(jfile, &AuditLogs)
+
+	if err != nil {
+		log.Fatal("Error decoding json data from file: ", err)
+		os.Exit(-1)
+	}
+
+	if *debug {
+		fmt.Fprintf(os.Stderr, "There are %d log file entries\n", len(AuditLogs))
+	}
+
+	for i := 0; i < len(AuditLogs); i++ {
+
+		if *debug {
+			fmt.Fprintf(os.Stderr, "{%d} Description = |%s|, Pathname = |%s| -> %d filters\n", i, AuditLogs[i].Description, AuditLogs[i].PathName, len(AuditLogs[i].Filters))
+		}
+
+		for j := 0; j < len(AuditLogs[i].Filters); j++ {
+			fil := AuditLogs[i].Filters[j]
+			outStr := "*" + fil.OutputAttr + "*"
+			attr, ok := colorsMap[fil.OutputAttr]
+
+			if ok {
+				fil.OutputAttr = attr
+			} else {
+				outStr = attr
+			}
+
+			if *debug {
+				fmt.Fprintf(os.Stderr, "   [%d] Regexp = %s\n", j+1, fil.Regexp)
+				fmt.Fprintf(os.Stderr, "   [%d] nfields = %d : %v\n", j+1, len(fil.Fields), fil.Fields)
+				fmt.Fprintf(os.Stderr, "   [%d] OutputStr = %s, OutputAttr = %s\n", j+1, fil.OutputStr, outStr)
+			}
+
+		}
+	}
 
 	/*
 		fmt.Println("Attempting test...")
@@ -238,7 +265,7 @@ func main() {
 		f, err := os.OpenFile(AuditLogs[i].PathName, os.O_RDONLY, 0666)
 
 		if err != nil {
-			log.Fatal("Error opening log file for ", AuditLogs[i].Desc, ": ", err)
+			log.Fatal("Error opening log file for ", AuditLogs[i].Description, ": ", err)
 		}
 
 		fi, err := f.Stat()
@@ -274,7 +301,10 @@ func main() {
 	}
 
 	for i := 0; i < len(AuditLogs); i++ {
-		fmt.Println("Adding inotify watcher for service:", AuditLogs[i].Desc)
+
+		if *debug {
+			fmt.Println("Adding inotify watcher for service:", AuditLogs[i].Description)
+		}
 		//		err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_MODIFY)
 		err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_ALL_EVENTS)
 
@@ -400,7 +430,7 @@ func main() {
 					} else {
 						alertstr := outstr
 						if len(AuditLogs[i].Filters[j].OutputAttr) > 0 {
-							outstr = AuditLogs[i].Filters[j].OutputAttr + outstr + ANSI_COLOR_RESET
+							outstr = AuditLogs[i].Filters[j].OutputAttr + outstr + colorsMap["ANSI_COLOR_RESET"]
 						}
 
 						fmt.Println("* ", outstr)

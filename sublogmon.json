@@ -1,0 +1,81 @@
+[
+{ "Description":    "auditd events",
+  "PathName":       "/var/log/audit/audit.log",
+  "Filters": [
+    { "Regexp":     "^type=SECCOMP msg=.+exe=\"(?P<exename>.+)\".+arch=(?P<arch>.+) syscall=(?P<syscall>[0-9]+)",
+      "Fields":     ["exename", "arch", "syscall"],
+      "OutputStr":  "SECCOMP violation detected when application {exename} attempted to call syscall ${syscall}:getscname:",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD"
+    },
+    { "Regexp":     "^type=AVC.+apparmor=\"DENIED\" operation=\"(?P<operation>.+?)\".+profile=\"(?P<profile>.+?)\".+name=\"(?P<target>.+?)\".+comm=\"(?P<application>.+?)\".+",
+      "Fields":     ["operation", "application", "target"],
+      "OutputStr":  "AppArmor violation of profile {profile} detected from {application} attempting {operation} on {target}",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD"
+    }
+  ]
+},
+{ "Description":    "oz daemon log",
+  "PathName":       "/var/log/oz-daemon.log",
+  "Filters": [
+    { "Regexp":     ".+oz-daemon\\[.+\\[(?P<application>.+)\\].+\\[FATAL\\] (?P<errmsg>.+)",
+      "Fields":     ["application", "errmsg"],
+      "OutputStr":  "Fatal oz-daemon condition encountered in {application}: {errmsg}",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD"
+    }
+  ]
+},
+{ "Description":    "tor daemon log",
+  "PathName":       "/var/log/tor/log",
+  "Filters": [
+    { "Regexp":     ".+behind the time published.+\\((?P<utctime>.+)\\).+Tor needs an accurate clock.+Please check your time.+",
+      "Fields":     ["utctime"],
+      "OutputStr":  "FATAL: TOR will not work unless you update your system clock to: {utctime}",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD"
+    },
+    { "Regexp":     ".+\\[warn\\] (?P<warning>.+)",
+      "Fields":     ["warning"],
+      "OutputStr":  "TOR WARNING: {warning}",
+      "OutputAttr": "ANSI_COLOR_RED"
+    }
+  ]
+},
+{ "Description":    "kernel and dmesg buffer",
+  "PathName":       "/var/log/kern.log",
+  "Filters": [
+    { "Regexp":     ".+kernel:.+PAX: terminating task: (?P<application>.+):[0-9]+,.+",
+      "Fields":     ["application"],
+      "OutputStr":  "PAX terminated process: {application}",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD"
+    },
+    { "Regexp":     ".+kernel:.+grsec: denied (?P<action>.+?) .+ by (?P<application>.+?)\\[.+",
+      "Fields":     ["action", "application"],
+      "OutputStr":  "grsec denied operation {action} to application {application}",
+      "OutputAttr": "ANSI_COLOR_YELLOW"
+    },
+    { "Regexp":     ".+kernel:.+grsec: (?P<grsecmsg>.+)",
+      "Fields":     ["grsecmsg"],
+      "OutputStr":  "grsec msg: {grsecmsg}"
+    }
+  ]
+},
+{ "Description":    "daemon log",
+  "PathName":       "/var/log/daemon.log",
+  "Filters": [
+    { "Regexp":     ".+roflcoptor.+DENY: \\[(?P<application>.+)\\].+",
+      "Fields":     ["application"],
+      "OutputStr":  "roflcoptor denied unauthorized Tor control port access by {application}",
+      "OutputAttr": "ANSI_COLOR_RED"
+    }
+  ]
+},
+{ "Description":    "syslog",
+  "PathName":       "/var/log/syslog",
+  "Filters": [
+    { "Regexp":     ".+fw-daemon.+DENY\\|(?P<host>.+?):(?P<port>\\d+?) \\((?P<app>.+?) -\\> (?P<ip>[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+?):[0-9]+\\)", 
+      "Fields":     ["host", "port"],
+      "OutputStr":  "Subgraph Firewall denied {app} connect attempt to {host} ({ip}) on port {port}",
+      "OutputAttr": "ANSI_COLOR_RED"
+    }
+  ]
+}
+]
