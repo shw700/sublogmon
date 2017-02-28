@@ -10,7 +10,7 @@ import "io/ioutil"
 import "encoding/json"
 import "flag"
 
-import "golang.org/x/exp/inotify"
+import fsnotify "gopkg.in/fsnotify.v1"
 
 var colorsMap = map[string]string{
 	"ANSI_COLOR_RED":      "\033[0;31m",
@@ -294,19 +294,22 @@ func main() {
 
 	}
 
-	watcher, err := inotify.NewWatcher()
+	watcher, err := fsnotify.NewWatcher()
 
 	if err != nil {
 		log.Fatal("Could not set up new watcher: ", err)
 	}
+
+	defer watcher.Close()
 
 	for i := 0; i < len(AuditLogs); i++ {
 
 		if *debug {
 			fmt.Println("Adding inotify watcher for service:", AuditLogs[i].Description)
 		}
-		//		err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_MODIFY)
-		err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_ALL_EVENTS)
+		//	err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_MODIFY)
+		//	err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_ALL_EVENTS)
+		err = watcher.Add(AuditLogs[i].PathName)
 
 		if err != nil {
 			log.Fatal("Could not set up watcher on log file: ", err)
@@ -321,36 +324,26 @@ func main() {
 	for {
 
 		select {
-		case ev := <-watcher.Event:
+		case ev := <-watcher.Events:
 			// fmt.Println("watcher event")
 			// log.Println("event: ", ev)
 			// fmt.Printf("mask was %x\n", ev.Mask)
 
-			switch ev.Mask {
-			case inotify.IN_ACCESS:
-				fallthrough
-			case inotify.IN_CLOSE_WRITE:
-				fallthrough
-			case inotify.IN_CLOSE_NOWRITE:
-				fallthrough
-			case inotify.IN_OPEN:
-				//fmt.Println("caught an event of no importance!")
+			// with fsnotify.v1, all possible events notifications should be modifications
+			if ev.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Remove|fsnotify.Rename|fsnotify.Chmod) == 0 {
+				fmt.Printf("Received unexpected notification event type (%v)... ignoring.\n", ev.Op)
 				continue
 			}
 
-			//Important: IN_MOVE_SELF, IN_ATTRIB(delete)
-
-			if ev.Mask&inotify.IN_MODIFY != inotify.IN_MODIFY {
-				fmt.Printf("Received unexpected notification event type (%x)... ignoring.\n", ev.Mask)
-				continue
-			}
+			// fmt.Println("caught event operation: ", ev.Op, " / hmm: ", ev.Name)
+			// XXX old: Important: IN_MOVE_SELF, IN_ATTRIB(delete)
 
 			i := 0
 
 			for i < len(AuditLogs) {
 
 				if AuditLogs[i].PathName == ev.Name {
-					//						fmt.Printf("comparison: |%s| vs |%s|\n", ev.Name, AuditLogs[i].PathName)
+					// fmt.Printf("comparison: |%s| vs |%s|\n", ev.Name, AuditLogs[i].PathName)
 					break
 				}
 
@@ -441,7 +434,7 @@ func main() {
 
 			}
 
-		case err := <-watcher.Error:
+		case err := <-watcher.Errors:
 			log.Println("error: ", err)
 		}
 

@@ -1,3 +1,3 @@
 # sublogmon
 
-This is just a placeholder.
+Critical event/security log monitor for Subgraph environment.
