@@ -378,7 +378,6 @@ func main() {
 
 			if i == len(AuditLogs) {
 				idir := filepath.Dir(ev.Name)
-				fmt.Println("Looking in directory instead:", idir)
 
 				_, ok := parentDirs[idir]
 
