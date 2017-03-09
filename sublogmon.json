@@ -30,6 +30,11 @@
       "Fields":     ["application", "errmsg"],
       "OutputStr":  "Fatal oz-daemon condition encountered in {application}: {errmsg}",
       "OutputAttr": "ANSI_COLOR_RED_BOLD"
+    },
+    { "Regexp":     ".+oz-daemon.*?\\[[0-9]+\\].+\\[(?P<application>.+)\\].+\\[FATAL\\] (?P<errmsg>.+)",
+      "Fields":     ["application", "errmsg"],
+      "OutputStr":  "Fatal oz-daemon condition encountered in {application}: {errmsg}",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD"
     }
   ]
 },

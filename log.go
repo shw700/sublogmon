@@ -9,12 +9,14 @@ import "strconv"
 import "io/ioutil"
 import "encoding/json"
 import "flag"
+import "path/filepath"
 
 import fsnotify "gopkg.in/fsnotify.v1"
 
 var colorsMap = map[string]string{
 	"ANSI_COLOR_RED":      "\033[0;31m",
 	"ANSI_COLOR_RED_BOLD": "\033[1;31m",
+	"ANSI_COLOR_GREEN":    "\033[0;32m",
 	"ANSI_COLOR_YELLOW":   "\033[0;33m",
 	"ANSI_COLOR_RESET":    "\033[0m",
 }
@@ -245,12 +247,11 @@ func main() {
 		}
 	}
 
-	/*
-		fmt.Println("Attempting test...")
-		testRegexp(1, 0, "Jul 21 18:58:32 subgraph oz-daemon[1281]: 2016/07/21 18:58:32 [gedit] (stderr) E [FATAL] Error (exec): no such file or directory /usr/bin-oz/gedit")
+/*		fmt.Println("Attempting test...")
+		testRegexp(2, 1, "Mar  8 22:09:55 subgraph oz-daemon[23280]: 2017/03/08 22:09:55 [spotify] (stderr) E [FATAL] Seccomp filter compile failed: /var/lib/oz/cells.d/spotify-whitelist.seccomp:18: unexpected end of line")
 		fmt.Println("Exiting.")
-		os.Exit(0)
-	*/
+		os.Exit(0) */
+
 
 	dbo, err := newDbusObject()
 	if err != nil {
@@ -260,6 +261,8 @@ func main() {
 	if os.Getuid() > 0 {
 		fmt.Println("Warning: this program probably won't run unless you execute it as root.")
 	}
+
+	parentDirs := make(map[string]bool)
 
 	for i := 0; i < len(AuditLogs); i++ {
 		f, err := os.OpenFile(AuditLogs[i].PathName, os.O_RDONLY, 0666)
@@ -272,6 +275,13 @@ func main() {
 
 		if err != nil {
 			log.Fatal("Could not call stat on log file: ", err)
+		}
+
+		pdir := filepath.Dir(AuditLogs[i].PathName)
+
+		if _, ok := parentDirs[pdir]; ok {
+		} else {
+			parentDirs[pdir] = true
 		}
 
 		// fmt.Printf("total log file size for %s  is %d\n", AuditLogs[i].PathName, fi.Size())
@@ -317,9 +327,26 @@ func main() {
 
 	}
 
+
+	for dname, _ := range parentDirs {
+
+		if *debug {
+			fmt.Println("Adding inotify watcher for parent directory events:", dname)
+		}
+
+		err = watcher.Add(dname)
+
+		if err != nil {
+			log.Fatal("Could not set up watcher on log file directory: ", err)
+		}
+
+	}
+
 	fmt.Printf("Done loading, going into I/O loop.\n")
 
 	dbuf := make([]byte, BUFSIZE)
+	last_buf := ""
+	last_repeat := 0
 
 	for {
 
@@ -336,7 +363,6 @@ func main() {
 			}
 
 			// fmt.Println("caught event operation: ", ev.Op, " / hmm: ", ev.Name)
-			// XXX old: Important: IN_MOVE_SELF, IN_ATTRIB(delete)
 
 			i := 0
 
@@ -351,7 +377,56 @@ func main() {
 			}
 
 			if i == len(AuditLogs) {
-				log.Fatal("Unexpected error occurred: received inotify event for unknown filename \"", ev.Name, "\"")
+				idir := filepath.Dir(ev.Name)
+				fmt.Println("Looking in directory instead:", idir)
+
+				_, ok := parentDirs[idir]
+
+				if !ok {
+					log.Fatal("Unexpected error occurred: received inotify event for unknown filename \"", ev.Name, "\"")
+				}
+
+				continue
+			}
+
+			if ev.Op & fsnotify.Create == fsnotify.Create {
+
+				if *debug {
+					fmt.Println("Looks like a monitored file just rolled over: ", ev.Name)
+				}
+
+				AuditLogs[i].f.Close()
+
+				AuditLogs[i].f, err = os.OpenFile(AuditLogs[i].PathName, os.O_RDONLY, 0666)
+
+				if err != nil {
+					log.Fatal("Error re-opening rolled log file ", AuditLogs[i].PathName, ": ", err)
+				}
+
+				// XXX: Right now we're subject to what's almost like a minor race condition.
+				// We have no way of knowing if the newly created file has been created afresh or is the
+				// product of a renaming. The desired behavior for a "new" file is to read it from the
+				// beginning. The desired behavior, on the other hand, for a renamed file is to seek
+				// to the end and start reading from there.
+				//
+				// Unfortunately, it is likely that the process creating and writing to the logfile
+				// will have completed both operations before the log monitor receives the inotify event.
+				// In that case, sublogmon will attempt to seek to the end of the "created" file but
+				// will do so after the initial contents of the file have been written by its owner -
+				// thereby missing the first batch of data.
+				//
+				// The solution is probably to use a better inotify package.
+
+				_, err := AuditLogs[i].f.Seek(0, os.SEEK_END)
+
+				if err != nil {
+					fmt.Println("Seek failed in rolled logfile: ", err)
+				}
+
+			}
+
+			if ev.Op & fsnotify.Write != fsnotify.Write {
+				continue
 			}
 
 			os.Getuid()
@@ -424,6 +499,21 @@ func main() {
 						alertstr := outstr
 						if len(AuditLogs[i].Filters[j].OutputAttr) > 0 {
 							outstr = AuditLogs[i].Filters[j].OutputAttr + outstr + colorsMap["ANSI_COLOR_RESET"]
+						}
+
+						if last_buf == outstr {
+							last_repeat++
+							fmt.Print("\r", colorsMap["ANSI_COLOR_GREEN"], "--- Suppressed identical output line ", last_repeat, " times.", colorsMap["ANSI_COLOR_RESET"])
+							break
+						} else {
+
+							if last_repeat > 0 {
+								fmt.Println("")
+							}
+
+							last_buf = outstr
+							last_repeat = 0
+
 						}
 
 						fmt.Println("* ", outstr)
