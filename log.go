@@ -10,6 +10,7 @@ import "io/ioutil"
 import "encoding/json"
 import "flag"
 import "path/filepath"
+import "time"
 
 import fsnotify "gopkg.in/fsnotify.v1"
 
@@ -531,10 +532,12 @@ func main() {
 							outstr = AuditLogs[i].Filters[j].OutputAttr + outstr + colorsMap["ANSI_COLOR_RESET"]
 						}
 
+						now := time.Now().UnixNano()
+
 						if last_buf == outstr {
 							last_repeat++
 							fmt.Print("\r", colorsMap["ANSI_COLOR_GREEN"], "--- Suppressed identical output line ", last_repeat, " times.", colorsMap["ANSI_COLOR_RESET"])
-							dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, "00:11:22 PM", alertstr, nil)
+							dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, nil)
 							break
 						} else {
 
@@ -548,8 +551,7 @@ func main() {
 						}
 
 						fmt.Println("* ", outstr)
-//						dbo.alert(alertstr)
-						dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, "00:11:22 PM", alertstr, nil)
+						dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, nil)
 
 					}
 

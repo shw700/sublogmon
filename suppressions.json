@@ -6,6 +6,10 @@
 				"abc": "def"
 			}
 	}
+	,{ "description": "Chromium warning flood",
+	  "wildcard":    ".*chromium attempted to call syscall set_robust_list.*",
+	  "metadata": { }
+	}
 	,{ "description": "bla2"
 	}
 	,{ "description": "bla3",
