@@ -33,22 +33,31 @@ type LogFunction struct {
 }
 
 type LogFilter struct {
+	ID         string
 	Regexp     string
 	Fields     []string
 	OutputStr  string
 	OutputAttr string
+	Severity string
 	Regcomp    *regexp.Regexp
 }
 
 type LogAuditFile struct {
 	Description string
+	SourceName  string
 	PathName    string
 	Filters     []LogFilter
 	f           *os.File
 	Backlog     string
 }
 
+type LogSuppression struct {
+        Description string
+        Metadata map[string]string
+}
+
 var AuditLogs []LogAuditFile
+var Suppressions []LogSuppression
 
 var (
 	LogFunctions = []LogFunction{
@@ -179,8 +188,9 @@ func formatOutput(src string, strMap map[string]string) string {
 var progName string
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "Usage: "+progName+" [-h/-help] [-d/-debug] [-c/-config json_config]     where")
+	fmt.Fprintln(os.Stderr, "Usage: "+progName+" [-h/-help] [-d/-debug] [-c/-config json_config] [-s/-suppress json_config]     where")
 	fmt.Fprintln(os.Stderr, "  -c / -config:     specifies a custom json config file (\"sublogmon.json\" by default),")
+	fmt.Fprintln(os.Stderr, "  -s / -suppress:   specifies a custom log suppression file (\"suppressions.json\" by default),")
 	fmt.Fprintln(os.Stderr, "  -d / -debug:      dumps additional debug information to stderr,")
 	fmt.Fprintln(os.Stderr, "  -h / -help:       display this help message,")
 }
@@ -189,7 +199,9 @@ func main() {
 	progName = os.Args[0]
 
 	var conffile = flag.String("conf", "sublogmon.json", "Specify json config file")
+	var supfile = flag.String("suppress", "suppressions.json", "Specify json config file")
 	flag.StringVar(conffile, "c", "sublogmon.json", "Specify json config file")
+	flag.StringVar(supfile, "s", "suppressions.json", "Specify json config file")
 	var debug = flag.Bool("debug", false, "Turn on debug mode")
 	flag.BoolVar(debug, "d", false, "Turn on debug mode")
 
@@ -213,8 +225,27 @@ func main() {
 	err = json.Unmarshal(jfile, &AuditLogs)
 
 	if err != nil {
-		log.Fatal("Error decoding json data from file: ", err)
+		log.Fatal("Error decoding json data from config file: ", err)
 		os.Exit(-1)
+	}
+
+	jfile, err = ioutil.ReadFile(*supfile)
+
+	if err != nil {
+		fmt.Println("Warning: no suppressions file was found!")
+	} else {
+
+		err = json.Unmarshal(jfile, &Suppressions)
+
+		if err != nil {
+			log.Fatal("Error decoding json data from suppressions file: ", err)
+			os.Exit(-1)
+		}
+
+		if *debug {
+			fmt.Fprintf(os.Stderr, "Read a total of %d suppressions from config\n", len(Suppressions))
+		}
+
 	}
 
 	if *debug {
@@ -503,6 +534,7 @@ func main() {
 						if last_buf == outstr {
 							last_repeat++
 							fmt.Print("\r", colorsMap["ANSI_COLOR_GREEN"], "--- Suppressed identical output line ", last_repeat, " times.", colorsMap["ANSI_COLOR_RESET"])
+							dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, "00:11:22 PM", alertstr, nil)
 							break
 						} else {
 
@@ -516,7 +548,9 @@ func main() {
 						}
 
 						fmt.Println("* ", outstr)
-						dbo.alert(alertstr)
+//						dbo.alert(alertstr)
+						dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, "00:11:22 PM", alertstr, nil)
+
 					}
 
 				}

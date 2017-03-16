@@ -1,0 +1,17 @@
+[
+	{ "description": "Ignore grsec RLIMIT warnings",
+	  "wildcard":	".*grsec msg: denied resource overstep by requesting.*RLIMIT_.*",
+	  "metadata":	{
+				"source": "grsec",
+				"abc": "def"
+			}
+	}
+	,{ "description": "bla2"
+	}
+	,{ "description": "bla3",
+	  "metadata":	{
+				"source": "crap",
+				"123": "666"
+			}
+	}
+]
