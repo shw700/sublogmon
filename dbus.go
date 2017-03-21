@@ -14,6 +14,7 @@ type slmData struct {
 	LogLevel string
 	Timestamp int64
 	LogLine string
+	OrigLogLine string
 	Metadata map[string]string
 }
 
@@ -27,9 +28,9 @@ func newDbusObject() (*dbusObject, error) {
         return &dbusObject{conn.Object("com.subgraph.EventNotifier", "/com/subgraph/EventNotifier")}, nil
 }
 
-func (ob *dbusObject) alertObj(id, level string, timestamp int64, line string, metadata map[string]string) {
+func (ob *dbusObject) alertObj(id, level string, timestamp int64, line, oline string, metadata map[string]string) {
 //	fmt.Println("id = ", id)
 //	fmt.Println("xyz: ", line)
-	dobj := slmData{id, level, timestamp, line, metadata}
+	dobj := slmData{id, level, timestamp, line, oline, metadata}
         ob.Call("com.subgraph.EventNotifier.Alert", 0, dobj)
 }

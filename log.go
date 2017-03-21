@@ -517,7 +517,7 @@ func main() {
 
 					}
 
-					/*for k := 0; k < len(AuditLogs[i].Filters[j].Fields); k++ {
+					/* for k := 0; k < len(AuditLogs[i].Filters[j].Fields); k++ {
 						fstr := AuditLogs[i].Filters[j].Fields[k]
 						fmt.Printf("Extracting field: %s = %s\n", fstr, rmap[fstr])
 					} */
@@ -537,7 +537,7 @@ func main() {
 						if last_buf == outstr {
 							last_repeat++
 							fmt.Print("\r", colorsMap["ANSI_COLOR_GREEN"], "--- Suppressed identical output line ", last_repeat, " times.", colorsMap["ANSI_COLOR_RESET"])
-							dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, nil)
+							dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, curLine, rmap)
 							break
 						} else {
 
@@ -551,8 +551,8 @@ func main() {
 						}
 
 						fmt.Println("* ", outstr)
-						dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, nil)
-
+						dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, curLine, rmap)
+						break
 					}
 
 				}

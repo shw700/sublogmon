@@ -82,9 +82,9 @@
       "Severity":   "critical"
     },
     { "ID":         "grsec-denied",
-      "Regexp":     ".+kernel:.+grsec: denied (?P<action>.+?) .+ by (?P<application>.+?)\\[.+",
-      "Fields":     ["action", "application"],
-      "OutputStr":  "grsec denied operation {action} to application {application}",
+      "Regexp":     ".+kernel:.+grsec: denied (?P<action>.+?) .+ for (?P<process>.+?)\\[.+",
+      "Fields":     ["action", "process"],
+      "OutputStr":  "grsec denied operation {action} to application {process}",
       "OutputAttr": "ANSI_COLOR_YELLOW",
       "Severity":   "alert"
     },
