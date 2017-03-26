@@ -5,17 +5,26 @@
 				"source": "grsec",
 				"abc": "def"
 			}
-	}
-	,{ "description": "Chromium warning flood",
+	},
+	{ "description": "Ignore grsec RLIMIT warnings",
+	  "wildcard":	".*grsec denied operation resource.*for RLIMIT_NOFILE.*",
+	  "metadata":	{
+				"source": "grsec"
+			}
+	},
+	{ "description": "Chromium warning flood",
 	  "wildcard":    ".*chromium attempted to call syscall set_robust_list.*",
-	  "metadata": { }
-	}
-	,{ "description": "bla2"
-	}
-	,{ "description": "bla3",
+	  "metadata": { } 
+	},
+	{ "description": "bla2",
+	  "metadata":	{
+				"process": "(/usr/lib/Xorg|Xorg)"
+			}
+	},
+	{ "description": "bla3",
 	  "metadata":	{
 				"source": "crap",
-				"123": "666"
+				"pid": "666"
 			}
 	}
 ]
