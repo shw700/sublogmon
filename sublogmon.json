@@ -119,6 +119,20 @@
       "OutputStr":  "Subgraph Firewall denied {app} connect attempt to {host} ({ip}) on port {port}",
       "OutputAttr": "ANSI_COLOR_RED",
       "Severity":   "alert"
+    },
+    { "ID":         "openvpn-warning",
+      "Regexp":     ".+openvpn.+RESOLVE: Cannot resolve host address: (?P<host>.+?):.+",
+      "Fields":     ["host"],
+      "OutputStr":  "Openvpn was not able to resolve address: {host}",
+      "OutputAttr": "ANSI_COLOR_RED",
+      "Severity":   "alert"
+    },
+    { "ID":         "openvpn-error",
+      "Regexp":     ".+openvpn.+AUTH:.+AUTH_FAILED.*",
+      "Fields":     ["msg"],
+      "OutputStr":  "Openvpn authentication failed!",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD",
+      "Severity":   "critical"
     }
   ]
 }
