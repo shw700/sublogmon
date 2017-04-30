@@ -12,7 +12,8 @@ import "flag"
 import "path/filepath"
 import "time"
 
-import fsnotify "gopkg.in/fsnotify.v1"
+//import fsnotify "gopkg.in/fsnotify.v1"
+import inotify "github.com/subgraph/inotify"
 
 var colorsMap = map[string]string{
 	"ANSI_COLOR_RED":      "\033[0;31m",
@@ -336,7 +337,7 @@ func main() {
 
 	}
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := inotify.NewWatcher()
 
 	if err != nil {
 		log.Fatal("Could not set up new watcher: ", err)
@@ -350,8 +351,8 @@ func main() {
 			fmt.Println("Adding inotify watcher for service:", AuditLogs[i].Description)
 		}
 		//	err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_MODIFY)
-		//	err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_ALL_EVENTS)
-		err = watcher.Add(AuditLogs[i].PathName)
+		err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_ALL_EVENTS)
+//		err = watcher.Add(AuditLogs[i].PathName)
 
 		if err != nil {
 			log.Fatal("Could not set up watcher on log file: ", err)
@@ -366,7 +367,8 @@ func main() {
 			fmt.Println("Adding inotify watcher for parent directory events:", dname)
 		}
 
-		err = watcher.Add(dname)
+//		err = watcher.Add(dname)
+		err = watcher.AddWatch(dname, inotify.IN_ALL_EVENTS|inotify.IN_ISDIR)
 
 		if err != nil {
 			log.Fatal("Could not set up watcher on log file directory: ", err)
@@ -383,14 +385,34 @@ func main() {
 	for {
 
 		select {
-		case ev := <-watcher.Events:
+//		case ev := <-watcher.Events:
+		case ev := <-watcher.Event:
 			// fmt.Println("watcher event")
 			// log.Println("event: ", ev)
 			// fmt.Printf("mask was %x\n", ev.Mask)
 
 			// with fsnotify.v1, all possible events notifications should be modifications
-			if ev.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Remove|fsnotify.Rename|fsnotify.Chmod) == 0 {
-				fmt.Printf("Received unexpected notification event type (%v)... ignoring.\n", ev.Op)
+
+			switch ev.Mask {
+			case inotify.IN_ACCESS:
+				fallthrough
+			case inotify.IN_ATTRIB:
+				fallthrough
+			case inotify.IN_CLOSE:
+				fallthrough
+			case inotify.IN_CLOSE_WRITE:
+				fallthrough
+			case inotify.IN_CLOSE_NOWRITE:
+				fallthrough
+			case inotify.IN_IGNORED:
+				fallthrough
+			case inotify.IN_OPEN:
+				//fmt.Println("caught an event of no importance!")
+				continue
+			}
+
+			if ev.Mask & (inotify.IN_MODIFY | inotify.IN_CREATE | inotify.IN_DELETE | inotify.IN_DELETE_SELF | inotify.IN_MOVE_SELF | inotify.IN_ISDIR | inotify.IN_OPEN | inotify.IN_MOVED_TO | inotify.IN_MOVED_FROM) == 0 {
+				fmt.Printf("Received unexpected notification event type (%x)... ignoring.\n", ev.Mask)
 				continue
 			}
 
@@ -420,7 +442,10 @@ func main() {
 				continue
 			}
 
-			if ev.Op & fsnotify.Create == fsnotify.Create {
+			// XXX: At the moment it seems the only event not handled properly if is a log file is opened with O_TRUNC.
+			// There does not seem to be any clean way to detect this; therefore the initial write to such a file will be missed by the monitor.
+
+			if ev.Mask & inotify.IN_CREATE == inotify.IN_CREATE {
 
 				if *debug {
 					fmt.Println("Looks like a monitored file just rolled over: ", ev.Name)
@@ -434,19 +459,18 @@ func main() {
 					log.Fatal("Error re-opening rolled log file ", AuditLogs[i].PathName, ": ", err)
 				}
 
-				// XXX: Right now we're subject to what's almost like a minor race condition.
-				// We have no way of knowing if the newly created file has been created afresh or is the
-				// product of a renaming. The desired behavior for a "new" file is to read it from the
-				// beginning. The desired behavior, on the other hand, for a renamed file is to seek
-				// to the end and start reading from there.
-				//
-				// Unfortunately, it is likely that the process creating and writing to the logfile
-				// will have completed both operations before the log monitor receives the inotify event.
-				// In that case, sublogmon will attempt to seek to the end of the "created" file but
-				// will do so after the initial contents of the file have been written by its owner -
-				// thereby missing the first batch of data.
-				//
-				// The solution is probably to use a better inotify package.
+			} else if ev.Mask & (inotify.IN_MOVED_TO|inotify.IN_MOVED_FROM) != 0 {
+				if *debug {
+					fmt.Println("Looks like a monitored file just rolled over (rename): ", ev.Name)
+				}
+
+				AuditLogs[i].f.Close()
+
+				AuditLogs[i].f, err = os.OpenFile(AuditLogs[i].PathName, os.O_RDONLY, 0666)
+
+				if err != nil {
+					log.Fatal("Error re-opening rolled log file ", AuditLogs[i].PathName, ": ", err)
+				}
 
 				_, err := AuditLogs[i].f.Seek(0, os.SEEK_END)
 
@@ -456,7 +480,7 @@ func main() {
 
 			}
 
-			if ev.Op & fsnotify.Write != fsnotify.Write {
+			if ev.Mask & inotify.IN_MODIFY != inotify.IN_MODIFY {
 				continue
 			}
 
@@ -559,7 +583,7 @@ func main() {
 
 			}
 
-		case err := <-watcher.Errors:
+		case err := <-watcher.Error:
 			log.Println("error: ", err)
 		}
 
