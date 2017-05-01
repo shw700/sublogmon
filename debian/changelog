@@ -1,0 +1,11 @@
+subgraph-logmon (0.9.1-2) unstable; urgency=medium
+
+  * git-buildpackage ready
+
+ -- Alexsandr Kibal <ak@subgraph.com>  Mon, 01 May 2017 10:44:47 +0000
+
+subgraph-logmon (0.9.1-1.1) unstable; urgency=medium
+
+  * Initial Release.
+
+ -- Alexsandr Kibal <ak@subgraph.com>  Sun, 23 Apr 2017 14:27:13 +0000

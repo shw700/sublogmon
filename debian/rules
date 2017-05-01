@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+export DH_VERBOSE=1
+export DH_GOPKG := github.com/shw700/sublogmon
+export DESTDIR := $(CURDIR)/debian/sublogmon
+
+%:
+	dh $@ --buildsystem=golang --with=golang --with=systemd
+
+override_dh_auto_install:
+	dh_auto_install
+	rm -rf $(CURDIR)/debian/sublogmon/usr/share/gocode
+	find $(CURDIR)/debian/sublogmon/ -type d -empty -delete
+
+override_dh_auto_test:
+	@echo skipped auto test
