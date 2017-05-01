@@ -11,7 +11,7 @@ export DESTDIR := $(CURDIR)/debian/sublogmon
 override_dh_auto_install:
 	dh_auto_install
 	rm -rf $(CURDIR)/debian/sublogmon/usr/share/gocode
-	find $(CURDIR)/debian/sublogmon/ -type d -empty -delete
+	#find $(CURDIR)/debian/sublogmon/ -type d -empty -delete
 
 override_dh_auto_test:
 	@echo skipped auto test

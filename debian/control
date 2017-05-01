@@ -2,7 +2,7 @@ Source: subgraph-logmon
 Section: net 
 Priority: optional
 Maintainer: Alexsandr Kibal <ak@subgraph.com>
-Build-Depends: debhelper (>= 9.0.0), dh-systemd, dh-golang, golang-go, golang-golang-x-net-dev, lintian
+Build-Depends: debhelper (>= 9.0.0), dh-systemd, dh-golang, golang-go, golang-subgraph-inotify-dev, golang-golang-x-net-dev, golang-dbus-dev, lintian
 Standards-Version: 3.9.8
 Homepage: https://www.github.com/shw700/sublogmon 
 Vcs-Git: https://www.github.com/shw700/sublogmon.git
