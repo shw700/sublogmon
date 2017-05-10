@@ -133,6 +133,13 @@
       "OutputStr":  "Openvpn authentication failed!",
       "OutputAttr": "ANSI_COLOR_RED_BOLD",
       "Severity":   "critical"
+    },
+    { "ID":         "sgfw-msg",
+      "Regexp":     ".+sgfw.+DENIED.+ by (?P<msg>.+)",
+      "Fields":     ["msg"],
+      "OutputStr":  "Subgraph Firewall: denied {msg}",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD",
+      "Severity":   "alert"
     }
   ]
 }
